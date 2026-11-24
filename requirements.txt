@@ -1,0 +1,2 @@
+aio-pika==10.2.3
+pymongo==4.20.1
