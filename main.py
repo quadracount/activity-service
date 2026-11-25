@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 
 import aio_pika
 from pymongo import ASCENDING, DESCENDING, AsyncMongoClient
@@ -126,7 +127,17 @@ async def main():
     await rpc_queue.consume(lambda message: service.on_rpc(message, channel.default_exchange))
 
     log.info("activity-service escuchando %s y %s", EVENTS_QUEUE, RPC_QUEUE)
-    await asyncio.Future()
+
+    # Como proceso principal del contenedor, Python ignora SIGTERM por defecto y
+    # Kubernetes esperaría 30 s para matarlo. Así se cierra ordenadamente al instante.
+    stop = asyncio.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        asyncio.get_running_loop().add_signal_handler(sig, stop.set)
+    await stop.wait()
+
+    log.info("deteniendo")
+    await connection.close()
+    await mongo.close()
 
 
 if __name__ == "__main__":
